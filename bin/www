@@ -1,0 +1,64 @@
+#!/usr/bin/env node
+var debug = require('debug')('PrimusExample');
+var app = require('../app');
+var Primus = require('primus');
+var Twit = require('twit');
+
+var T = new Twit({
+    consumer_key: 'k3rZhkxNpewkIr62Vta0RDnGO'
+    , consumer_secret: 'U76pggNpgW0AzlkQSLN1fOS6HSXspZPSp8tIPgYdo0DJAt2M2f'
+    , access_token: '2936929826-sA7TbwFWzpAXBgTbdaWB4AcrqOnCcB2d7C5WelO'
+    , access_token_secret: 'Wj1rtDy7KAWU7XosNkek84iOqmEGzBAnLmMePEnQfwBaJ'
+});
+
+app.set('port', process.env.PORT || 3000);
+
+var server = app.listen(app.get('port'), function () {
+    debug('Express server listening on port ' + server.address().port);
+});
+
+primus = new Primus(server, {transformer: 'websockets'});
+primus.library();
+primus.on("connection", function (spark) {
+
+    //Your Default Stream
+    var defaultStream = T.stream('user');
+    defaultStream.on('tweet', function (tweet) {
+        console.log('<<<<<<<<<<<', tweet);
+        tweet.action = 'defaultStream';
+        spark.write(tweet);
+    });
+    var retweetStream = null;
+    spark.write("Connected: spark.id = " + spark.id);
+    spark.on('data', function (data) {
+        console.log('>>>>>>', data);
+
+        if (!data.action) {
+            console.log('Action not Specified');
+            return;
+        }
+        switch (data.action) {
+            case 'sendTwit':
+                T.post('statuses/update', {status: data.message}, function (err, data, response) {
+                    console.log(data);
+                    spark.write({status: 'send', message: data});
+                });
+                break;
+            case 'retweetStream':
+                if (retweetStream) {
+                    retweetStream.stop();
+                }
+                retweetStream = T.stream('statuses/filter', {track: data.message, language: 'en'});
+                retweetStream.on('tweet', function (tweet) {
+                    console.log('<><><><><><', retweetStream);
+                    tweet.action = 'retweetStream';
+                    spark.write(tweet);
+                });
+                break;
+
+            default :
+                console.log('Default Area');
+                break
+        }
+    });
+});

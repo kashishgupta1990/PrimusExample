@@ -1,0 +1,14 @@
+<script src="/primus/primus.js"></script>
+<script>
+    // connect to current URL
+    var primus = Primus.connect()
+
+    primus.on("open", function () {
+        console.log("Connected!")
+    });
+
+    primus.on("data", function (data) {
+        console.log("data =", data);
+        primus.write(data);
+    })
+</script>
